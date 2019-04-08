@@ -22,7 +22,7 @@ def getdata(file):
 		# Insert dummy variable of 1 to the first column.
 		data.insert(0,1)
 		# All but one element is an attribute (feature)
-		attrs.append(data[:-1]) 
+		attrs.append(data[:-1])
 		# Last element is the result
 		res.append([data[-1]])
 	return numpy.matrix(attrs), numpy.array(res), len(lines)
@@ -47,7 +47,7 @@ def getSSE(weights, attrs, res, count):
 if __name__ == "__main__":
 	trainingattrs, trainingres, trainingcount = getdata(args.train)
 	testingattrs, testingres, testingcount = getdata(args.test)
-	
+
 	w = weightvector(trainingattrs,trainingres)
 	printweights(w)
 
