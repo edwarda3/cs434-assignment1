@@ -1,3 +1,4 @@
+import sys
 import numpy
 import math
 import mpmath
@@ -11,90 +12,98 @@ parser.add_argument('learningrate',help='Learning Rate')
 args = parser.parse_args()
 
 class LogRegression:
-	def __init__(self,train,test,learn):
-		(self.trainingattrs,self.trainingres) = train
-		(self.testingattrs,self.testingres) = test
-		self.lr = learn
-		self.weights = numpy.array([float(0)]*self.trainingattrs.shape[1])
-		self.trainacc = []
-		self.testacc = []
+    def __init__(self,train,test,learn):
+        print('Initializing model with {} learning rate...'.format(learn),file=sys.stderr)
+        (self.trainingattrs,self.trainingres) = train
+        (self.testingattrs,self.testingres) = test
+        print('{n} features, {trainnum} training points, {testnum} testing points'.format(n=self.trainingattrs.shape[1],trainnum=self.trainingattrs.shape[0],testnum=self.testingattrs.shape[0],file=sys.stderr))
+        self.lr = learn
+        self.weights = numpy.array([float(0)]*self.trainingattrs.shape[1])
+        self.trainacc = []
+        self.testacc = []
 
-	def train(self):
-		attrs = self.trainingattrs
-		res = self.trainingres
-		epsilon = 10000
-		gradientnorm = epsilon+1
+    def train(self):
+        attrs = self.trainingattrs
+        res = self.trainingres
+        epsilon = 5000
+        gradientnorm = epsilon+1
+        print('Training until gradient < (epsilon = {})'.format(epsilon),file=sys.stderr)
 
-		while(gradientnorm > epsilon):
-			gradient = numpy.array([0]*attrs.shape[1])
-			for i in range(attrs.shape[0]): #For every statistic/instance
-				instancedata = numpy.array(attrs[i,:])[0]
-				#Use algorithm from page 17 of slides. Batch learning for logistic regression
-				try:
-					prediction = 1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata)))
-				except OverflowError:
-					# The overflow happens because guess is typically a number around ~-800, so when exp(-1*guess) occurs, we are essentially doing exp(800), and this causes an integer overflow
-					# We can use a large number math library (mpmath) to solve this
-					prediction = float(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
-				gradient = gradient + (prediction - res[i])*instancedata
-			self.weights -= self.lr * gradient
-			gradientnorm = numpy.linalg.norm(gradient)
+        while(gradientnorm > epsilon):
+            #Initialize an empty gradient
+            gradient = numpy.array([0]*attrs.shape[1])
+            for i in range(attrs.shape[0]): #For every statistic/instance
+                instancedata = numpy.array(attrs[i,:])[0] #Retrieve a row (one data point)
+                #Use algorithm from page 17 of slides. Batch learning for logistic regression
+                try:
+                    prediction = 1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata)))
+                except OverflowError:
+                    # The overflow happens because guess is typically a number around ~-800, so when exp(-1*guess) occurs, we are essentially doing exp(800), and this causes an integer overflow
+                    # We can use a large number math library (mpmath) to solve this
+                    prediction = float(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
+                # Our loss function, we add the loss vector to our gradient vector
+                gradient = gradient + (prediction - res[i])*instancedata
+            #Apply the gradient to the weights by a factor of the learning rate
+            self.weights -= self.lr * gradient
 
-			self.getacc()
+            gradientnorm = numpy.linalg.norm(gradient)
 
-	def getacc(self):
-		#Get accuracy for training data
-		traincorrect = 0
-		for i in range(self.trainingattrs.shape[0]):
-			instancedata = numpy.array(self.trainingattrs[i,:])[0]
-			try:
-				prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
-			except OverflowError:
-				prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
-			if(prediction == self.trainingres[i]):
-				traincorrect+=1
-		self.trainacc.append(traincorrect/self.trainingres.shape[0])
+            #Records the current accuracy for later plotting
+            self.getacc()
 
-		#get accuracy for testing data
-		testcorrect = 0
-		for i in range(self.testingattrs.shape[0]):
-			instancedata = numpy.array(self.testingattrs[i,:])[0]
-			try:
-				prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
-			except OverflowError:
-				prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
-			if(prediction == self.testingres[i]):
-				testcorrect+=1
-		self.testacc.append(testcorrect/self.testingres.shape[0])
+    def getacc(self):
+        #Get accuracy for training data
+        traincorrect = 0
+        for i in range(self.trainingattrs.shape[0]):
+            instancedata = numpy.array(self.trainingattrs[i,:])[0]
+            try:
+                prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
+            except OverflowError:
+                prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
+            if(prediction == self.trainingres[i]):
+                traincorrect+=1
+        self.trainacc.append(traincorrect/self.trainingres.shape[0])
+
+        #get accuracy for testing data
+        testcorrect = 0
+        for i in range(self.testingattrs.shape[0]):
+            instancedata = numpy.array(self.testingattrs[i,:])[0]
+            try:
+                prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
+            except OverflowError:
+                prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
+            if(prediction == self.testingres[i]):
+                testcorrect+=1
+        self.testacc.append(testcorrect/self.testingres.shape[0])
 
 def getdata(file):
-	lines = None
-	attrs = []
-	res = []
-	with open(file, 'r') as f:
-		lines = f.readlines()
-	for line in lines:
-		data = [int(x) for x in line.strip().split(',')]
-		attrs.append(data[:-1])
-		res.append(data[-1])
-	return numpy.matrix(attrs),numpy.array(res)
+    lines = None
+    attrs = []
+    res = []
+    with open(file, 'r') as f:
+        lines = f.readlines()
+    for line in lines:
+        data = [int(x) for x in line.strip().split(',')]
+        attrs.append(data[:-1])
+        res.append(data[-1])
+    return numpy.matrix(attrs),numpy.array(res)
 
 def plotlines(training,testing):
-	xaxis = list(range(1,len(training)+1))
-	plt.plot(xaxis,[t*100 for t in training],'r--o',xaxis,[t*100 for t in testing],'b--^')
-	plt.title('Model accuracy over iterations of gradient descent')
-	plt.xlabel('Number of iterations')
-	plt.ylabel('Accuracy (Percentage correct)')
-	plt.show()
+    xaxis = list(range(1,len(training)+1))
+    plt.plot(xaxis,[t*100 for t in training],'r--o',xaxis,[t*100 for t in testing],'b--^')
+    plt.title('Model accuracy over iterations of gradient descent')
+    plt.xlabel('Number of iterations')
+    plt.ylabel('Accuracy (Percentage correct)')
+    plt.show()
 
 if __name__ == "__main__":
-	trainingattrs,trainingres = getdata(args.train)
-	testingattrs,testingres = getdata(args.test)
-	lr = float(args.learningrate)
+    trainingattrs,trainingres = getdata(args.train)
+    testingattrs,testingres = getdata(args.test)
+    lr = float(args.learningrate)
 
-	model = LogRegression((trainingattrs, trainingres), (testingattrs,testingres), lr)
-	model.train()
-	#print(model.weights)
-	plotlines(model.trainacc,model.testacc)
-	
+    model = LogRegression((trainingattrs, trainingres), (testingattrs,testingres), lr)
+    model.train()
+    #print(model.weights)
+    plotlines(model.trainacc,model.testacc)
+    
 
