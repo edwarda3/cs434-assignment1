@@ -8,19 +8,18 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser()
 parser.add_argument('train',help='Training file')
 parser.add_argument('test',help='Testing file')
-parser.add_argument('learningrate',help='Learning Rate')
+parser.add_argument('lambdas',help='A list of lambdas to test. input should be floats delineated by commas, like: 0.1,0.5,1,2 etc. Ensure that no spaces exist.')
 args = parser.parse_args()
 
 class LogRegression:
     def __init__(self,train,test,learn):
-        print('Initializing model with {} learning rate...'.format(learn),file=sys.stderr)
+        print('Initializing model with lambda={}...'.format(learn),file=sys.stderr)
         (self.trainingattrs,self.trainingres) = train
         (self.testingattrs,self.testingres) = test
         print('{n} features, {trainnum} training points, {testnum} testing points'.format(n=self.trainingattrs.shape[1],trainnum=self.trainingattrs.shape[0],testnum=self.testingattrs.shape[0],file=sys.stderr))
-        self.lr = learn
-        self.weights = numpy.array([float(0)]*self.trainingattrs.shape[1])
-        self.trainacc = []
-        self.testacc = []
+        self.lambd = lambd
+        self.lr = 0.1
+        self.weights = numpy.array([float(1)]*self.trainingattrs.shape[1])
 
     def train(self):
         attrs = self.trainingattrs
@@ -43,13 +42,13 @@ class LogRegression:
                     prediction = float(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
                 # Our loss function, we add the loss vector to our gradient vector
                 gradient = gradient + (prediction - res[i])*instancedata
-            #Apply the gradient to the weights by a factor of the learning rate
-            self.weights -= self.lr * gradient
+
+            #Apply the loss to the weights by a factor of the learning rate 
+            # w(t+1) = w(t) + lr * ( gradient of likelihood + l2penalty )
+            l2penalty = numpy.array([math.log(-2*self.lambd*w) if w<0 else math.log(2*self.lambd*w) for w in self.weights])
+            self.weights -= self.lr * (gradient + l2penalty)
 
             gradientnorm = numpy.linalg.norm(gradient)
-
-            #Records the current accuracy for later plotting
-            self.getacc()
 
     def getacc(self):
         #Get accuracy for training data
@@ -57,24 +56,27 @@ class LogRegression:
         for i in range(self.trainingattrs.shape[0]):
             instancedata = numpy.array(self.trainingattrs[i,:])[0]
             try:
-                prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
+                pred = 1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata)))
+                prediction = int(pred)
             except OverflowError:
                 prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
             if(prediction == self.trainingres[i]):
                 traincorrect+=1
-        self.trainacc.append(traincorrect/self.trainingres.shape[0])
+        trainacc = traincorrect/self.trainingres.shape[0]
 
         #get accuracy for testing data
         testcorrect = 0
         for i in range(self.testingattrs.shape[0]):
             instancedata = numpy.array(self.testingattrs[i,:])[0]
             try:
-                prediction = int(1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata))))
+                pred = 1 / (1 + math.exp(-1 * numpy.dot(self.weights,instancedata)))
+                prediction = int(pred)
             except OverflowError:
                 prediction = int(1 / (1 + mpmath.exp(-1 * numpy.dot(self.weights,instancedata))))
             if(prediction == self.testingres[i]):
                 testcorrect+=1
-        self.testacc.append(testcorrect/self.testingres.shape[0])
+        testacc = testcorrect/self.testingres.shape[0]
+        return trainacc,testacc
 
 def getdata(file):
     lines = None
@@ -88,11 +90,11 @@ def getdata(file):
         res.append(data[-1])
     return numpy.matrix(attrs),numpy.array(res)
 
-def plotlines(training,testing):
-    xaxis = list(range(1,len(training)+1))
-    plt.plot(xaxis,[t*100 for t in training],'r--o',xaxis,[t*100 for t in testing],'b--^')
-    plt.title('Model accuracy over iterations of gradient descent')
-    plt.xlabel('Number of iterations')
+def plotlines(lambdas,training,testing):
+    plt.plot(lambdas,[t*100 for t in training],'r--o',lambdas,[t*100 for t in testing],'b--^')
+    plt.xscale('log')
+    plt.title('Model accuracy over differing values of lambda when using L-2 Normalization')
+    plt.xlabel('Lambda value for L-2 Normalization')
     plt.ylabel('Accuracy (Percentage correct)')
     plt.legend(['Training Acc','Testing Acc'])
     plt.show()
@@ -100,11 +102,19 @@ def plotlines(training,testing):
 if __name__ == "__main__":
     trainingattrs,trainingres = getdata(args.train)
     testingattrs,testingres = getdata(args.test)
-    lr = float(args.learningrate)
+    lambdastrs = args.lambdas.split(',')
+    lambdas = [float(i) for i in lambdastrs]
 
-    model = LogRegression((trainingattrs, trainingres), (testingattrs,testingres), lr)
-    model.train()
-    print(model.weights)
-    plotlines(model.trainacc,model.testacc)
+    trainacc = []
+    testacc = []
+    for lambd in lambdas:
+        model = LogRegression((trainingattrs, trainingres), (testingattrs,testingres), lambd)
+        model.train()
+        trainaccuracy,testaccuracy = model.getacc()
+        trainacc.append(trainaccuracy)
+        testacc.append(testaccuracy)
+        print("Model with lambda={}, train: {}%, test: {}%".format(lambd,trainaccuracy*100,testaccuracy*100))
+        print()
+    plotlines(lambdas,trainacc,testacc)
     
 
