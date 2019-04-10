@@ -94,6 +94,7 @@ def plotlines(training,testing):
     plt.title('Model accuracy over iterations of gradient descent')
     plt.xlabel('Number of iterations')
     plt.ylabel('Accuracy (Percentage correct)')
+    plt.legend(['Training Acc','Testing Acc'])
     plt.show()
 
 if __name__ == "__main__":
